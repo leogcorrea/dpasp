@@ -136,11 +136,15 @@ def main():
   if len(files) > 0:
     prog = pasp.parse(*files, semantics = args["sem"])
     if "psemantics" not in prog.directives: prog.directives["psemantics"] = {"psemantics": args["psem"]}
+    
+    isCyclic, v = prog.graph.isCyclic()
 
-    if prog.graph.isCyclic():
-      print("Program constains a cycle.")
+    if isCyclic:
+      print("Program constains cycle(s).")
     else:
       print("Program doesn't contain a cycle.")
+
+    print(v)
 
     prog.run()
   else:

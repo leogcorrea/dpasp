@@ -107,8 +107,6 @@ class StableTransformer(lark.Transformer):
     self.consts = consts
     self.varquery_id = 0
     self.graph = Graph()
-    self.facts = []
-    self.rules = []
 
   @staticmethod
   def pack(type: str, rep: str = None, val = None, scope: dict = {}, nlabel: tuple = None) -> tuple[str, str, str, dict, tuple]:
@@ -246,7 +244,9 @@ class StableTransformer(lark.Transformer):
   # Literals.
   def lit(self, P):
     s = P[0][0] != "NEG"
-    return self.pack("lit", " ".join(getnths(P, 1)), (s, P[0][2] if s else P[1][2]), self.join_scope(P), P[0][4])
+    expr = P[0][2] if s else P[1][2]
+    nlabel = (not s, expr)
+    return self.pack("lit", " ".join(getnths(P, 1)), (s, expr), self.join_scope(P), nlabel)
   def grlit(self, P): return self.lit(P)
 
   # Binary operations.
@@ -256,24 +256,20 @@ class StableTransformer(lark.Transformer):
   def fact(self, F):
     f = f"{''.join(getnths(F, 1))}"
     self.graph.addVertex(f)
-    self.facts.append(f)
     # Facts are always grounded.
     return self.pack("fact", f + ".", f) #, F[0][NODE_LABEL])
   def pfact(self, PF):
     p, f = PF[0][2], PF[1][1]
     self.graph.addVertex(f)
-    self.facts.append(f)
     return self.pack("pfact", "", ProbFact(p, f))
   def cfact(self, CF):
     l, u, f = CF[0][2], CF[1][2], CF[2][1]
     self.graph.addVertex(f)
-    self.facts.append(f)
     return self.pack("cfact", "", CredalFact(l, u, f))
   def lpfact(self, PF):
     if PF[0][0] == "prob": p, f = PF[0][2], PF[1][1]
     else: p, f = 0.5, PF[0][1]
     self.graph.addVertex(f)
-    self.facts.append(f)
     return self.pack("pfact", "", ProbFact(p, f, learnable = True))
 
   # Heads.
@@ -296,7 +292,6 @@ class StableTransformer(lark.Transformer):
     h, b = R[-2], R[-1]
     o = f"{h[1]} :- {b[1]}"
     self.graph.addVertex(o)
-    self.rules.append(o)
     return self.pack("rule", " :- ".join(getnths(R, 1)) + ".", self.join_scope(R), nlabel=nlabel)
   
   def prule(self, R):
@@ -578,14 +573,16 @@ class StableTransformer(lark.Transformer):
       elif type == "directive": 
         directives[obj[0]] = tup if len(tup := obj[1:]) > 1 else tup[0]
       elif type == "rule":
-        for regex in nlabel:
-          if regex is None:
+        for item in nlabel:
+          if item is None:
             continue
+          isNegative = item[0]
+          regex = item[1]
           adjacencies = self.graph.searchVertices(regex)
           for new_vertex in adjacencies:
             vertex = expr if expr[-1] != '.' else expr[:-1]
             if vertex != new_vertex:
-              self.graph.addEdge(vertex, new_vertex)
+              self.graph.addEdge(vertex, new_vertex, isNegative)
           
     # Deal with ungrounded probabilistic rules.
     for r in PR:
