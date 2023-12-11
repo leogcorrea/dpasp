@@ -59,6 +59,7 @@ class PreparsingTransformer(lark.Transformer):
   def __init__(self):
     super().__init__()
     self.consts = {}
+
   def __default__(self, _, __, ___): return lark.visitors.Discard
   def SEMANTICS_OPT_LOGIC(self, O): return str(O)
   def SEMANTICS_OPT_PROB(self, _): return lark.visitors.Discard
@@ -245,7 +246,9 @@ class StableTransformer(lark.Transformer):
   def lit(self, P):
     s = P[0][0] != "NEG"
     expr = P[0][2] if s else P[1][2]
-    nlabel = (not s, expr)
+    nlabel = (1 if s else -1, P[0][4] if s else P[1][4])
+    if nlabel[1] is None:
+      nlabel = (nlabel[0], expr)
     return self.pack("lit", " ".join(getnths(P, 1)), (s, expr), self.join_scope(P), nlabel)
   def grlit(self, P): return self.lit(P)
 
@@ -495,7 +498,7 @@ class StableTransformer(lark.Transformer):
 
   # Constraint.
   def constraint(self, C): 
-    return self.pack("constraint", f":- {C[0][1]}."))
+    return self.pack("constraint", f":- {C[0][1]}.")
 
   # Query elements.
   def qelement(self, E):
@@ -581,8 +584,7 @@ class StableTransformer(lark.Transformer):
           adjacencies = self.graph.searchVertices(regex)
           for new_vertex in adjacencies:
             vertex = expr if expr[-1] != '.' else expr[:-1]
-            if vertex != new_vertex:
-              self.graph.addEdge(vertex, new_vertex, isNegative)
+            self.graph.addEdge(vertex, new_vertex, isNegative)
           
     # Deal with ungrounded probabilistic rules.
     for r in PR:

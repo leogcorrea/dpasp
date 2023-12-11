@@ -6,7 +6,7 @@ INDEX = 0
 LOW_LINK = 1
 ON_STACK = 2
 
-
+INFINITE = float('inf') 
 
 # This class represents a undirected
 # graph using adjacency list representation
@@ -45,63 +45,102 @@ class Graph:
  
         # Add w to v_s list
         self.edges[v].append((w, neg))
+        #self.edges[w].append((v, neg))
  
     # A recursive function that uses
     # visited[] and parent to detect
     # cycle in subgraph reachable from vertex v.
-    def isCyclicUtil(self, v, visited, parent, isNegative = False):
+    def isCyclicUtil(self, v, visit, parent = ""):
  
         self.currentComp.append(v)
         # Mark the current node as visited
-        visited[v] = True
+        visit[v] = True
  
         # Recur for all the vertices
         # adjacent to this vertex
-        for vertex, neg in self.edges[v]:
- 
-            isNegative |= neg
-
-            # If the node is not
-            # visited then recurse on it
-            if not visited[vertex]:
-                if self.isCyclicUtil(vertex, visited, v, isNegative):
-                    return True, isNegative
-            # If an adjacent vertex is
-            # visited and not parent
-            # of current vertex,
-            # then there is a cycle
-            elif parent != vertex:
-                return True, isNegative
- 
-        return False, isNegative
+        for vertex, weight in self.edges[v]:
+            # Process only positive weighted edges
+            if weight != -1: 
+                # If the node is not
+                # visited then recurse on it
+                if not visit[vertex]:
+                    if self.isCyclicUtil(vertex, visit, v):
+                        return True
+                # If an adjacent vertex is
+                # visited and not parent
+                # of current vertex,
+                # then there is a cycle
+                elif parent != '' and parent != vertex:
+                    return True
+                # Return True for self references
+                elif vertex == v:
+                    return True
+            
+        return False
  
     # Returns true if the graph
-    # contains a cycle, else false.
+    # contains a positive cycle, else false.
 
-    def isCyclic(self):
- 
-        result = False
+    def isPositiveCyclic(self):
         # Mark all the vertices
         # as not visited
+        visit = {k: False for k in self.vertices}
 
-        visited = {k: False for k in self.vertices}
-
-        self.connectedComps = []
-
-        #visited = dict.fromkeys(self.vertices)
-        #visited = [False]*len(self.vertices)
- 
         # Call the recursive helper
-        # function to detect cycle in different
+        # function to detect a positive cycle in different
         # DFS trees
-        for vertex, visit in visited.items():
- 
-            # Don't recur for u if it
-            # is already visited
-            if not visit:
-                isCyclic, isNegative = self.isCyclicUtil(vertex, visited, "")
-                self.connectedComps.append((isNegative, self.currentComp))
-                self.currentComp = []
-                result |= isCyclic
+        for vertex, visited in visit.items():
+            # Don't recur for u if it is already visited
+            if not visited:
+                if self.isCyclicUtil(vertex, visit):
+                    return True
 
-        return result, self.connectedComps
+        return False
+
+    def isNegCycleBellmanFord(self, src, dist, visit):
+        V = len(self.vertices)
+
+        # Step 1: Initialize distances from src
+        # to all other vertices as INFINITE
+        dist = {k: INFINITE for k in self.vertices}
+        dist[src] = 0
+    
+        # Step 2: Relax all edges |V| - 1 times.
+        # A simple shortest path from src to any
+        # other vertex can have at-most |V| - 1
+        # edges
+        for i in range(1, V):
+            for u, adjacencies in self.edges.items():
+                for v, weight in adjacencies:
+                    if (dist[u] != INFINITE and dist[u] + weight < dist[v]):
+                        dist[v] = dist[u] + weight
+                        if not visit[v]:
+                            visit[v] = True
+    
+        # Step 3: check for negative-weight cycles.
+        # The above step guarantees shortest distances
+        # if graph doesn't contain negative weight cycle.
+        # If we get a shorter path, then there
+        # is a cycle.
+        for u, adjacencies in self.edges.items():
+            for v, weight in adjacencies:
+                if (dist[u] != INFINITE and dist[u] + weight < dist[v]):
+                    return True
+    
+        return False
+
+    def isNegativeCyclic(self):
+        # Initialize list of visited vertices
+        # to all other vertices as INFINITE
+        dist = {k: INFINITE for k in self.vertices}   
+        visit =  {k: False for k in self.vertices}   
+
+        # Call Bellman-Ford for all those vertices
+        # that are not visited
+        for vertex, visited in visit.items():
+            if not visited:
+                visited = True
+                if (self.isNegCycleBellmanFord(vertex, dist, visit)):
+                    return True 
+
+        return False
